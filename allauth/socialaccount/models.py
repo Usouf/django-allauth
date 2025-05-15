@@ -208,6 +208,7 @@ class SocialLogin:
     token: Optional[SocialToken]
     email_addresses: List[EmailAddress]
     state: Dict
+    _did_authenticate_by_email: Optional[str]
 
     def __init__(
         self,
@@ -215,9 +216,11 @@ class SocialLogin:
         account: Optional[SocialAccount] = None,
         token: Optional[SocialToken] = None,
         email_addresses: Optional[List[EmailAddress]] = None,
+        provider=None,
     ):
+        self.provider = provider
         if token:
-            assert token.account is None or token.account == account
+            assert token.account is None or token.account == account  # nosec
         self.token = token
         self.user = user
         if account:
@@ -248,6 +251,7 @@ class SocialLogin:
     def serialize(self) -> Dict[str, Any]:
         serialize_instance = get_adapter().serialize_instance
         ret = dict(
+            provider=self.provider.serialize(),
             account=serialize_instance(self.account),
             user=serialize_instance(self.user),
             state=self.state,
@@ -259,7 +263,10 @@ class SocialLogin:
 
     @classmethod
     def deserialize(cls, data: Dict[str, Any]) -> "SocialLogin":
+        from allauth.socialaccount.providers.base.provider import Provider
+
         deserialize_instance = get_adapter().deserialize_instance
+        provider = Provider.deserialize(data["provider"])
         account = deserialize_instance(SocialAccount, data["account"])
         user = deserialize_instance(get_user_model(), data["user"])
         if "token" in data:
@@ -271,6 +278,7 @@ class SocialLogin:
             email_address = deserialize_instance(EmailAddress, ea)
             email_addresses.append(email_address)
         ret = cls()
+        ret.provider = provider
         ret.token = token
         ret.account = account
         ret.user = user
@@ -297,38 +305,24 @@ class SocialLogin:
             setup_user_email(request, user, self.email_addresses)
 
     @property
-    def user(self):
-        return self._user
-
-    @user.setter
-    def user(self, v):
-        self._user = v
-        self._is_existing = None
-
-    @property
     def is_existing(self) -> bool:
         """When `False`, this social login represents a temporary account, not
         yet backed by a database record.
         """
-        if self._is_existing is not None:
-            return self._is_existing
         if self.user.pk is None:
-            ret = False
-        else:
-            ret = get_user_model().objects.filter(pk=self.user.pk).exists()
-        self._is_existing = ret
-        return ret
+            return False
+        return get_user_model().objects.filter(pk=self.user.pk).exists()
 
     def lookup(self) -> None:
         """Look up the existing local user account to which this social login
         points, if any.
         """
-        self._did_authenticate_by_email = False
+        self._did_authenticate_by_email = None
         if not self._lookup_by_socialaccount():
             self._lookup_by_email()
 
     def _lookup_by_socialaccount(self) -> bool:
-        assert not self.is_existing
+        assert not self.is_existing  # nosec
         try:
             a = SocialAccount.objects.get(
                 provider=self.account.provider, uid=self.account.uid
@@ -350,7 +344,7 @@ class SocialLogin:
         # Update token
         if not app_settings.STORE_TOKENS or not self.token:
             return
-        assert not self.token.pk
+        assert not self.token.pk  # nosec
         app = self.token.app
         if app and not app.pk:
             # If the app is not stored in the db, leave the FK empty.
@@ -378,11 +372,16 @@ class SocialLogin:
             users = filter_users_by_email(email, prefer_verified=True)
             if users:
                 self.user = users[0]
-                self._did_authenticate_by_email = True
+                self._did_authenticate_by_email = email
                 return
 
-    def _accept_login(self) -> None:
+    def _accept_login(self, request) -> None:
+        from allauth.socialaccount.internal.flows.email_authentication import (
+            wipe_password,
+        )
+
         if self._did_authenticate_by_email:
+            wipe_password(request, self.user, self._did_authenticate_by_email)
             if app_settings.EMAIL_AUTHENTICATION_AUTO_CONNECT:
                 self.connect(context.request, self.user)
 

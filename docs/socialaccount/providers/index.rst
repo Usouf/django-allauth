@@ -27,6 +27,15 @@ For local development, use the following::
     http://127.0.0.1:8000/accounts/twitter/login/callback/
 
 
+Protocol Specifics
+******************
+
+.. toctree::
+   :maxdepth: 1
+
+   oauth2
+
+
 Provider Specifics
 ******************
 
@@ -90,6 +99,7 @@ Provider Specifics
    line
    linkedin
    mailchimp
+   mailcow
    mediawiki
    microsoft
    miro
@@ -126,12 +136,14 @@ Provider Specifics
    tiktok
    trainingpeaks
    trello
+   tumblr_oauth2
    twitch
    twitter_oauth2
    twitter
    untappd
    vimeo_oauth2
    vimeo
+   vk
    wahoo
    weibo
    weixin

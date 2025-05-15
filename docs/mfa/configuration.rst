@@ -11,10 +11,11 @@ Available settings:
   Used to override forms. Defaults to::
 
     MFA_FORMS = {
-        'authenticate': 'allauth.mfa.forms.AuthenticateForm',
-        'reauthenticate': 'allauth.mfa.forms.AuthenticateForm',
-        'activate_totp': 'allauth.mfa.forms.ActivateTOTPForm',
-        'deactivate_totp': 'allauth.mfa.forms.DeactivateTOTPForm',
+        'authenticate': 'allauth.mfa.base.forms.AuthenticateForm',
+        'reauthenticate': 'allauth.mfa.base.forms.AuthenticateForm',
+        'activate_totp': 'allauth.mfa.totp.forms.ActivateTOTPForm',
+        'deactivate_totp': 'allauth.mfa.totp.forms.DeactivateTOTPForm',
+        'generate_recovery_codes': 'allauth.mfa.recovery_codes.forms.GenerateRecoveryCodesForm',
     }
 
 ``MFA_PASSKEY_LOGIN_ENABLED`` (default: ``False``)
@@ -22,8 +23,17 @@ Available settings:
   this to be enabled, you also need to add ``"webauthn"`` to
   ``MFA_SUPPORTED_TYPES``.
 
+``MFA_PASSKEY_SIGNUP_ENABLED`` (default: ``False``)
+  Whether or not end users can signup using a (WebAuthn) passkey. Note that for
+  this to be enabled, you need to add ``"webauthn"`` to ``MFA_SUPPORTED_TYPES``,
+  require mandatory email verification and have
+  ``ACCOUNT_EMAIL_VERIFICATION_BY_CODE_ENABLED`` set to ``True``.
+
 ``MFA_RECOVERY_CODE_COUNT`` (default: ``10``)
   The number of recovery codes.
+
+``MFA_RECOVERY_CODE_DIGITS`` (default: ``8``)
+  The number of digits of each recovery code.
 
 ``MFA_SUPPORTED_TYPES`` (default: ``[["recovery_codes", "totp"]``)
   The authenticator types that end users are able to setup. Allowed
@@ -32,6 +42,9 @@ Available settings:
 
 ``MFA_TOTP_PERIOD`` (default: ``30``)
   The period that a TOTP code will be valid for, in seconds.
+
+``MFA_TOTP_TOLERANCE`` (default: ``0``)
+  The number of time steps in the past or future to allow. Lower values are more secure, but more likely to fail due to clock drift.
 
 ``MFA_TOTP_DIGITS`` (default: ``6``)
   The number of digits for TOTP codes.
@@ -45,3 +58,31 @@ Available settings:
   local development and testing. To work around that, you can use this setting.
   Only use this for development, never on production. See commit ``8b979313``
   over at ``fido2``.
+
+``MFA_TRUST_ENABLED`` (default: ``False``)
+  Enables the "Trust this browser?" functionality, which presents users with MFA
+  enabled the choice to trust their browser allowing them to skip authenticating
+  per MFA on each login. This is implemented by handing out a special trust
+  cookie.
+
+``MFA_TRUST_COOKIE_AGE`` (default: ``timedelta(days=14)``)
+  Specifies the period (in seconds, or ``timedelta``) during which MFA is
+  skipped.
+
+``MFA_TRUST_COOKIE_NAME`` (default: ``"mfa_trusted"``)
+  The name of the trust cookie.
+
+``MFA_TRUST_COOKIE_DOMAIN`` (default: ``settings.SESSION_COOKIE_DOMAIN``)
+  The domain of the trust cookie.
+
+``MFA_TRUST_COOKIE_HTTPONLY`` (default: ``settings.SESSION_COOKIE_HTTPONLY``)
+  Whether or not the trust cookie is HTTP only.
+
+``MFA_TRUST_COOKIE_PATH`` (default: ``settings.SESSION_COOKIE_PATH``)
+  The path set on the trust cookie.
+
+``MFA_TRUST_COOKIE_SAMESITE`` (default: ``settings.SESSION_COOKIE_SAMESITE``)
+  The value of the SameSite flag on the trust cookie.
+
+``MFA_TRUST_COOKIE_SECURE`` (default: ``settings.SESSION_COOKIE_SECURE``)
+  Whether to use a secure cookie for the trust cookie.

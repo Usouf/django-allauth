@@ -24,7 +24,7 @@ DATABASES = {
 }
 
 ROOT_URLCONF = "tests.account_only.urls"
-LOGIN_URL = "/login/"
+LOGIN_URL = "/accounts/login/"
 
 TEMPLATES = [
     {
@@ -100,3 +100,4 @@ PASSWORD_HASHERS = [
 
 
 ACCOUNT_LOGIN_BY_CODE_ENABLED = True
+ACCOUNT_ADAPTER = "tests.common.adapters.AccountAdapter"

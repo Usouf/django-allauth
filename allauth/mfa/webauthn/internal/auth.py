@@ -23,8 +23,7 @@ from allauth.mfa.adapter import get_adapter
 from allauth.mfa.models import Authenticator
 
 
-if not fido2.features.webauthn_json_mapping.enabled:
-    fido2.features.webauthn_json_mapping.enabled = True
+fido2.features.webauthn_json_mapping.enabled = True
 
 
 STATE_SESSION_KEY = "mfa.webauthn.state"
@@ -131,7 +130,7 @@ def get_authenticator_by_credential_id(
 def parse_authentication_response(response: Any) -> AuthenticationResponse:
     try:
         return AuthenticationResponse.from_dict(response)
-    except TypeError:
+    except (TypeError, ValueError):
         raise get_adapter().validation_error("incorrect_code")
 
 

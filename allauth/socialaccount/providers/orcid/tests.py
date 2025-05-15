@@ -1,5 +1,7 @@
+from django.test import TestCase
+
 from allauth.socialaccount.tests import OAuth2TestsMixin
-from allauth.tests import MockedResponse, TestCase
+from allauth.tests import MockedResponse
 
 from .provider import OrcidProvider
 
@@ -369,6 +371,9 @@ class OrcidTests(OAuth2TestsMixin, TestCase):
     }
         """,
         )
+
+    def get_expected_to_str(self):
+        return "Orcid.org"
 
     def get_login_response_json(self, with_refresh_token=True):
         # TODO: This is not an actual response. I added this in order

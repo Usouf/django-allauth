@@ -9,7 +9,7 @@ from urllib.parse import parse_qs, urlparse
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.test import RequestFactory
+from django.test import RequestFactory, TestCase
 from django.test.utils import override_settings
 from django.urls import reverse
 from django.utils.http import urlencode
@@ -20,7 +20,7 @@ from allauth.account.utils import user_email, user_username
 from allauth.socialaccount import app_settings
 from allauth.socialaccount.adapter import get_adapter
 from allauth.socialaccount.models import SocialAccount, SocialApp
-from allauth.tests import MockedResponse, TestCase, mocked_response
+from allauth.tests import MockedResponse, mocked_response
 
 
 def setup_app(provider_id):
@@ -49,6 +49,9 @@ class OAuthTestsMixin:
     def get_mocked_response(self):
         pass
 
+    def get_expected_to_str(self):
+        raise NotImplementedError
+
     def setUp(self):
         super(OAuthTestsMixin, self).setUp()
         self.app = setup_app(self.provider_id)
@@ -74,14 +77,13 @@ class OAuthTestsMixin:
         user = resp.context["user"]
         self.assertFalse(user.has_usable_password())
         account = SocialAccount.objects.get(user=user, provider=self.provider.id)
+        provider_account = account.get_provider_account()
+        self.assertEqual(provider_account.to_str(), self.get_expected_to_str())
         # The following lines don't actually test that much, but at least
         # we make sure that the code is hit.
-        provider_account = account.get_provider_account()
         provider_account.get_avatar_url()
         provider_account.get_profile_url()
         provider_account.get_brand()
-        provider_account.to_str()
-        return account
 
     @override_settings(
         SOCIALACCOUNT_AUTO_SIGNUP=True,
@@ -149,6 +151,9 @@ class OAuth2TestsMixin:
 
     def get_mocked_response(self):
         pass
+
+    def get_expected_to_str(self):
+        raise NotImplementedError
 
     def get_access_token(self) -> str:
         return "testac"
@@ -283,13 +288,13 @@ class OAuth2TestsMixin:
         sa = SocialAccount.objects.filter(
             user=user, provider=self.provider.app.provider_id or self.provider.id
         ).get()
+        provider_account = sa.get_provider_account()
+        self.assertEqual(provider_account.to_str(), self.get_expected_to_str())
         # The following lines don't actually test that much, but at least
         # we make sure that the code is hit.
-        provider_account = sa.get_provider_account()
         provider_account.get_avatar_url()
         provider_account.get_profile_url()
         provider_account.get_brand()
-        provider_account.to_str()
         # get token
         if self.app:
             t = sa.socialtoken_set.get()
@@ -411,6 +416,9 @@ class OpenIDConnectTests(OAuth2TestsMixin):
     def mocked_response(self, *responses):
         return mocked_response(*responses, callback=self._mocked_responses)
 
+    def get_expected_to_str(self):
+        return "ness@some.oidc.server.onett.example"
+
     def setup_provider(self):
         self.app = setup_app(self.provider_id)
         self.app.provider_id = self.provider_id
@@ -438,3 +446,41 @@ class OpenIDConnectTests(OAuth2TestsMixin):
         self.assertRedirects(resp, "/accounts/profile/", fetch_redirect_response=False)
         sa = SocialAccount.objects.get(provider=self.app.provider_id)
         self.assertDictEqual(sa.extra_data, self.extra_data)
+
+    def test_404_on_unknown_provider_id(self):
+        """
+        Make sure that OIDC endpoints hit with an invalid provider_id
+        not corresponding to any configured social "apps" returns a 404
+        instead of an unhandled SocialApp.DoesNotExist.
+        """
+
+        # we can't use self.provider.get_login_url as we intentionally
+        # do not want to use the configured provider's ID, so let's inline
+        # OpenIDConnectProvider.get_login_url
+        login_url = reverse(
+            self.app.provider + "_login",
+            kwargs={
+                # intentionally invalidate the ID
+                "provider_id": self.app.provider_id
+                + "-invalid"
+            },
+        )
+
+        resp = self.client.post(login_url)
+
+        self.assertEqual(resp.status_code, 404)
+
+        # same with the callback endpoint - inlining OpenIDConnectProvider.get_callback_url
+        callback_url = reverse(
+            self.app.provider + "_callback",
+            kwargs={
+                # intentionally invalidate the ID
+                "provider_id": self.app.provider_id
+                + "-invalid"
+            },
+        )
+
+        # note: callback is a GET endpoint
+        resp = self.client.get(callback_url)
+
+        self.assertEqual(resp.status_code, 404)

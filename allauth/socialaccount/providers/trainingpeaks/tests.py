@@ -5,10 +5,11 @@
 
 from collections import namedtuple
 
+from django.test import TestCase
 from django.test.utils import override_settings
 
 from allauth.socialaccount.tests import OAuth2TestsMixin
-from allauth.tests import MockedResponse, TestCase
+from allauth.tests import MockedResponse
 
 from .provider import TrainingPeaksProvider
 from .views import TrainingPeaksOAuth2Adapter
@@ -30,6 +31,9 @@ class TrainingPeaksTests(OAuth2TestsMixin, TestCase):
                 "Weight": 87.5223617553711
             }""",
         )  # noqa
+
+    def get_expected_to_str(self):
+        return "user@example.com"
 
     def get_login_response_json(self, with_refresh_token=True):
         rtoken = ""

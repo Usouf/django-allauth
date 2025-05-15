@@ -111,6 +111,7 @@ the ``settings.py`` of your project::
         'allauth.socialaccount.providers.linkedin',
         'allauth.socialaccount.providers.linkedin_oauth2',
         'allauth.socialaccount.providers.mailchimp',
+        'allauth.socialaccount.providers.mailcow',
         'allauth.socialaccount.providers.mailru',
         'allauth.socialaccount.providers.mediawiki',
         'allauth.socialaccount.providers.meetup',
@@ -149,6 +150,7 @@ the ``settings.py`` of your project::
         'allauth.socialaccount.providers.trainingpeaks',
         'allauth.socialaccount.providers.trello',
         'allauth.socialaccount.providers.tumblr',
+        'allauth.socialaccount.providers.tumblr_oauth2',
         'allauth.socialaccount.providers.twentythreeandme',
         'allauth.socialaccount.providers.twitch',
         'allauth.socialaccount.providers.twitter',
@@ -174,8 +176,8 @@ the ``settings.py`` of your project::
     ]
 
     MIDDLEWARE = (
-        "django.middleware.common.CommonMiddleware",
         "django.contrib.sessions.middleware.SessionMiddleware",
+        "django.middleware.common.CommonMiddleware",
         "django.middleware.csrf.CsrfViewMiddleware",
         "django.contrib.auth.middleware.AuthenticationMiddleware",
         "django.contrib.messages.middleware.MessageMiddleware",
@@ -210,6 +212,11 @@ Note that you do not necessarily need the URLs provided by
 ``django.contrib.auth.urls``. Instead of the URLs ``login``, ``logout``, and
 ``password_change`` (among others), you can use the URLs provided by
 ``allauth``: ``account_login``, ``account_logout``, ``account_set_password``...
+
+**Important**: This project is not designed to work with ``SESSION_ENGINE`` set
+to ``"django.contrib.sessions.backends.signed_cookies"``.  With signed cookies,
+the session data is signed but not encrypted, whereas allauth stores secrets
+(e.g. verification codes) in the session.
 
 
 Post-Installation

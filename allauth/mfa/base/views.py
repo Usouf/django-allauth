@@ -1,29 +1,38 @@
 from django.contrib.auth.decorators import login_required
+from django.forms import Form
 from django.http import HttpResponseRedirect
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.generic import TemplateView
+from django.views.generic.edit import FormView
 
 from allauth.account import app_settings as account_settings
-from allauth.account.stages import LoginStageController
+from allauth.account.internal.decorators import login_stage_required
 from allauth.account.views import BaseReauthenticateView
 from allauth.mfa import app_settings
 from allauth.mfa.base.forms import AuthenticateForm, ReauthenticateForm
+from allauth.mfa.internal.flows import trust as trust_
 from allauth.mfa.models import Authenticator
-from allauth.mfa.stages import AuthenticateStage
+from allauth.mfa.stages import AuthenticateStage, TrustStage
 from allauth.mfa.utils import is_mfa_enabled
 from allauth.mfa.webauthn.forms import AuthenticateWebAuthnForm
 from allauth.mfa.webauthn.internal.flows import auth as webauthn_auth
 from allauth.utils import get_form_class
 
 
+@method_decorator(
+    login_stage_required(stage=AuthenticateStage.key, redirect_urlname="account_login"),
+    name="dispatch",
+)
 class AuthenticateView(TemplateView):
     form_class = AuthenticateForm
+    webauthn_form_class = AuthenticateWebAuthnForm
     template_name = "mfa/authenticate." + account_settings.TEMPLATE_EXTENSION
 
     def dispatch(self, request, *args, **kwargs):
-        self.stage = LoginStageController.enter(request, AuthenticateStage.key)
-        if not self.stage or not is_mfa_enabled(
+        self.stage = request._login_stage
+        if not is_mfa_enabled(
             self.stage.login.user,
             [Authenticator.Type.TOTP, Authenticator.Type.WEBAUTHN],
         ):
@@ -39,32 +48,41 @@ class AuthenticateView(TemplateView):
 
     def _build_forms(self):
         posted_form = None
+        AuthenticateFormClass = self.get_form_class()
+        AuthenticateWebAuthnFormClass = self.get_webauthn_form_class()
         user = self.stage.login.user
         support_webauthn = "webauthn" in app_settings.SUPPORTED_TYPES
         if self.request.method == "POST":
             if "code" in self.request.POST:
-                posted_form = self.auth_form = AuthenticateForm(
+                posted_form = self.auth_form = AuthenticateFormClass(
                     user=user, data=self.request.POST
                 )
                 self.webauthn_form = (
-                    AuthenticateWebAuthnForm(user=user) if support_webauthn else None
+                    AuthenticateWebAuthnFormClass(user=user)
+                    if support_webauthn
+                    else None
                 )
             else:
                 self.auth_form = (
-                    AuthenticateForm(user=user) if support_webauthn else None
+                    AuthenticateFormClass(user=user) if support_webauthn else None
                 )
-                posted_form = self.webauthn_form = AuthenticateWebAuthnForm(
+                posted_form = self.webauthn_form = AuthenticateWebAuthnFormClass(
                     user=user, data=self.request.POST
                 )
         else:
-            self.auth_form = AuthenticateForm(user=user)
+            self.auth_form = AuthenticateFormClass(user=user)
             self.webauthn_form = (
-                AuthenticateWebAuthnForm(user=user) if support_webauthn else None
+                AuthenticateWebAuthnFormClass(user=user) if support_webauthn else None
             )
         return posted_form
 
     def get_form_class(self):
         return get_form_class(app_settings.FORMS, "authenticate", self.form_class)
+
+    def get_webauthn_form_class(self):
+        return get_form_class(
+            app_settings.FORMS, "authenticate_webauthn", self.webauthn_form_class
+        )
 
     def form_valid(self, form):
         form.save()
@@ -136,3 +154,30 @@ class IndexView(TemplateView):
 
 
 index = IndexView.as_view()
+
+
+@method_decorator(
+    login_stage_required(stage=TrustStage.key, redirect_urlname="account_login"),
+    name="dispatch",
+)
+class TrustView(FormView):
+    form_class = Form
+    template_name = "mfa/trust." + account_settings.TEMPLATE_EXTENSION
+
+    def form_valid(self, form):
+        do_trust = self.request.POST.get("action") == "trust"
+        stage = self.request._login_stage
+        response = stage.exit()
+        if do_trust:
+            trust_.trust_browser(self.request, stage.login.user, response)
+        return response
+
+    def get_context_data(self, **kwargs):
+        ret = super().get_context_data(**kwargs)
+        now = timezone.now()
+        ret["trust_from"] = now
+        ret["trust_until"] = now + app_settings.TRUST_COOKIE_AGE
+        return ret
+
+
+trust = TrustView.as_view()

@@ -24,13 +24,17 @@ class RESTView(View):
                 return response
         return super().dispatch(request, *args, **kwargs)
 
+    def get_input_class(self):
+        input_class = self.input_class
+        if isinstance(input_class, dict):
+            input_class = input_class.get(self.request.method)
+        return input_class
+
     def get_input_kwargs(self):
         return {}
 
     def handle_input(self, data):
-        input_class = self.input_class
-        if isinstance(input_class, dict):
-            input_class = input_class.get(self.request.method)
+        input_class = self.get_input_class()
         if not input_class:
             return
         input_kwargs = self.get_input_kwargs()
@@ -39,7 +43,10 @@ class RESTView(View):
             data = {}
         self.input = input_class(data=data, **input_kwargs)
         if not self.input.is_valid():
-            return ErrorResponse(self.request, input=self.input)
+            return self.handle_invalid_input(self.input)
+
+    def handle_invalid_input(self, input):
+        return ErrorResponse(self.request, input=input)
 
     def _parse_json(self, request):
         if request.method == "GET" or not request.body:
